@@ -43,7 +43,6 @@ const calculateLvl = (pts: number) => {
   return Math.max(1, Math.min(100, l));
 };
 
-// مكون شارة المستوى الصغير للاستخدام في الهيدر
 const HeaderLevelBadge: React.FC<{ level: number; type: 'wealth' | 'recharge' }> = ({ level, type }) => {
   const isWealth = type === 'wealth';
   return (
@@ -83,6 +82,7 @@ export default function App() {
   const [appName, setAppName] = useState('فيفو لايف - Vivo Live');
   const [privateChatPartner, setPrivateChatPartner] = useState<User | null>(null);
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   
   const [gameSettings, setGameSettings] = useState<GameSettings>({
     slotsWinRate: 35,
@@ -109,6 +109,12 @@ export default function App() {
   const t = translations[language];
 
   useEffect(() => {
+    // التحقق من إمكانية تثبيت التطبيق
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    });
+
     const qAnnouncements = query(
       collection(db, 'global_announcements'),
       orderBy('timestamp', 'desc'),
@@ -187,6 +193,16 @@ export default function App() {
       unsubStore(); 
     };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted install');
+    }
+    setDeferredPrompt(null);
+  };
 
   const handleUpdateUser = async (updatedData: any) => {
     if (!user) return;
@@ -287,12 +303,24 @@ export default function App() {
   const [showCPModal, setShowCPModal] = useState(false);
 
   if (initializing) return (
-    <div className="h-[100dvh] w-full bg-[#020617] flex flex-col items-center justify-center">
-      <div className="w-32 h-32 bg-yellow-400 rounded-full overflow-hidden shadow-2xl"><img src={appLogo} className="w-full h-full object-cover" /></div>
+    <div className="h-[100dvh] w-full bg-[#020617] flex flex-col items-center justify-center font-cairo">
+      <motion.div 
+        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+        transition={{ repeat: Infinity, duration: 2 }}
+        className="w-32 h-32 bg-gradient-to-br from-amber-400 to-orange-600 rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.3)] p-1"
+      >
+        <img src={appLogo} className="w-full h-full object-cover rounded-[2.3rem]" />
+      </motion.div>
+      <h1 className="mt-8 text-2xl font-black text-white tracking-widest uppercase">VIVO LIVE</h1>
+      <div className="mt-4 flex gap-1">
+        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce"></div>
+      </div>
     </div>
   );
 
-  if (!user) return <AuthScreen onAuth={(u) => { setUser(u); localStorage.setItem('voice_chat_user', JSON.stringify(u)); }} appLogo={appLogo} />;
+  if (!user) return <AuthScreen onAuth={(u) => { setUser(u); localStorage.setItem('voice_chat_user', JSON.stringify(u)); }} appLogo={appLogo} canInstall={!!deferredPrompt} onInstall={handleInstallApp} />;
 
   return (
     <div className={`h-[100dvh] w-full bg-[#030816] text-white relative md:max-w-md mx-auto shadow-2xl overflow-hidden flex flex-col font-cairo`}>
@@ -337,7 +365,6 @@ export default function App() {
                         <h2 className="text-base md:text-lg font-black text-white">{user.name}</h2>
                      </div>
                      <div className="flex items-center gap-2">
-                        {/* عرض الـ ID بشكل احترافي مع دعم الوسام المخصص */}
                         <div className="relative inline-flex items-center justify-center group cursor-pointer" onClick={() => navigator.clipboard.writeText(user.customId?.toString() || user.id)}>
                            {user.badge ? (
                              <div className="relative flex items-center justify-center h-6 min-w-[70px] px-2.5">
@@ -351,7 +378,6 @@ export default function App() {
                              </div>
                            )}
                         </div>
-                        {/* إضافة مستويات الفيلات (ثروة وشحن) */}
                         <div className="flex gap-1.5 items-center">
                            <HeaderLevelBadge level={user.wealthLevel || calculateLvl(user.wealth || 0)} type="wealth" />
                            <HeaderLevelBadge level={user.rechargeLevel || calculateLvl(user.rechargePoints || 0)} type="recharge" />
